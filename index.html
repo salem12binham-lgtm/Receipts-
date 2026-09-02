@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إيصالات الحوالات</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --border:#262b36; --text:#e8eaed;
+    --muted:#8b90a0; --accent:#3b82f6; --accent2:#22c55e; --danger:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  header{padding:18px 16px;text-align:center;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10}
+  header h1{margin:0;font-size:20px}
+  .tabs{display:flex;gap:8px;justify-content:center;margin-top:12px}
+  .tab-btn{flex:1;max-width:180px;padding:11px 10px;border-radius:10px;border:1px solid var(--border);background:#0c0e13;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;transition:.2s}
+  .tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .wrap{max-width:640px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 6px}
+  input,select,textarea{width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);background:#0c0e13;color:var(--text);font-size:15px}
+  textarea{resize:vertical;min-height:60px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .imgpick{border:2px dashed var(--border);border-radius:12px;padding:14px;text-align:center;cursor:pointer;margin-top:10px}
+  .imgpick img{max-width:100%;max-height:220px;border-radius:8px;margin-top:8px}
+  button{cursor:pointer;border:none;border-radius:10px;font-size:15px;font-weight:600;padding:13px}
+  .btn-main{width:100%;background:var(--accent);color:#fff;margin-top:14px}
+  .btn-main:disabled{opacity:.5}
+  .search{margin-bottom:10px}
+  .item{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;display:flex;gap:12px}
+  .item img{width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0;cursor:pointer}
+  .item .info{flex:1;min-width:0}
+  .item .title{font-weight:600;font-size:15px}
+  .item .sub{font-size:13px;color:var(--muted);margin-top:2px}
+  .item .amount{font-size:14px;color:var(--accent2);font-weight:600;margin-top:4px}
+  .del{background:none;color:var(--danger);font-size:13px;padding:4px}
+  .empty{text-align:center;color:var(--muted);padding:30px 10px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1f2430;border:1px solid var(--border);padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;transition:.3s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+  .modal.show{display:flex}
+  .modal img{max-width:100%;max-height:90vh;border-radius:8px}
+  .cfgbox{font-size:13px;color:var(--muted);text-align:center;padding:20px}
+
+  @media print{
+    body *{visibility:hidden}
+    #printArea, #printArea *{visibility:visible}
+    #printArea{display:block !important;position:absolute;top:0;left:0;width:100%;color:#000;background:#fff}
+    #printArea table{width:100%;border-collapse:collapse;font-size:12px}
+    #printArea th,#printArea td{border:1px solid #999;padding:5px 6px;text-align:right;vertical-align:middle}
+    #printArea th{background:#eee}
+    #printArea img{width:70px;height:70px;object-fit:cover;border-radius:4px}
+    #printArea h2{text-align:center}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📄 إيصالات الحوالات</h1>
+  <div class="tabs">
+    <button class="tab-btn active" data-cat="ورثة" onclick="switchTab('ورثة')">👨‍👩‍👧 ورثة</button>
+    <button class="tab-btn" data-cat="عام" onclick="switchTab('عام')">📁 عام</button>
+  </div>
+</header>
+<div class="wrap">
+
+  <div class="card">
+    <label>الغرض</label>
+    <input id="purpose" placeholder="مثال: راتب عامل، صيانة، شراء أعلاف...">
+
+    <div class="row2">
+      <div>
+        <label>لمين (المستلم)</label>
+        <input id="recipient" placeholder="اسم الشخص/الجهة">
+      </div>
+      <div>
+        <label>وين راحت (الوجهة)</label>
+        <input id="destination" placeholder="بنك / بلد / حساب">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div>
+        <label>المبلغ (اختياري)</label>
+        <input id="amount" type="number" placeholder="0.00">
+      </div>
+      <div>
+        <label>التاريخ</label>
+        <input id="date" type="date">
+      </div>
+    </div>
+
+    <label>ملاحظات (اختياري)</label>
+    <textarea id="notes" placeholder="أي تفاصيل إضافية"></textarea>
+
+    <div class="imgpick" id="picker">
+      <div id="pickerText">🖼️ اضغط لتحميل صورة الإيصال</div>
+      <input type="file" id="fileInput" accept="image/*" style="display:none">
+      <img id="preview" style="display:none">
+    </div>
+
+    <button class="btn-main" id="saveBtn">💾 حفظ الإيصال</button>
+  </div>
+
+  <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <label style="margin:0;flex:1;min-width:120px">📊 تقرير سنة
+      <select id="yearFilter" style="margin-top:6px"></select>
+    </label>
+    <button id="printBtn" style="background:var(--accent2);color:#000;padding:11px 16px;align-self:flex-end">🖨️ طباعة التقرير</button>
+  </div>
+
+  <input class="search" id="search" placeholder="🔍 بحث بالاسم أو الغرض أو الوجهة...">
+  <div id="list"></div>
+</div>
+
+<div id="printArea" style="display:none"></div>
+
+<div class="toast" id="toast"></div>
+<div class="modal" id="modal"><img id="modalImg"></div>
+
+<script>
+// ============= إعدادات Firebase =============
+// أنشئ مشروع Firebase جديد، فعّل Firestore Database،
+// وحط بياناته هنا بدل القيم الوهمية.
+// مهم: من Firebase Console > Firestore Database > Rules، خلي القواعد تسمح بالقراءة/الكتابة
+const firebaseConfig = {
+  apiKey: "AIzaSyD-NF5we4zc4lBxSyX6DPqDRyKjAhKYh00",
+  authDomain: "receipts-dbd54.firebaseapp.com",
+  projectId: "receipts-dbd54",
+  storageBucket: "receipts-dbd54.firebasestorage.app",
+  messagingSenderId: "168662369086",
+  appId: "1:168662369086:web:680cb36c24ff8cfe2ba26f",
+  measurementId: "G-JEFQ3M435F"
+};
+// ==============================================
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const col = db.collection("receipts");
+
+let selectedImageBase64 = "";
+let activeCategory = "ورثة";
+
+window.switchTab = (cat) => {
+  activeCategory = cat;
+  document.querySelectorAll(".tab-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.cat === cat);
+  });
+  populateYears();
+  renderList();
+};
+document.getElementById("date").valueAsDate = new Date();
+
+// اختيار/ضغط الصورة
+document.getElementById("picker").onclick = () => document.getElementById("fileInput").click();
+document.getElementById("fileInput").onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const maxW = 1000;
+      const scale = Math.min(1, maxW / img.width);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      selectedImageBase64 = canvas.toDataURL("image/jpeg", 0.5);
+      const preview = document.getElementById("preview");
+      preview.src = selectedImageBase64;
+      preview.style.display = "block";
+      document.getElementById("pickerText").textContent = "✅ تم اختيار الصورة (اضغط لتغييرها)";
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 2000);
+}
+
+// حفظ
+document.getElementById("saveBtn").onclick = async () => {
+  const purpose = document.getElementById("purpose").value.trim();
+  const recipient = document.getElementById("recipient").value.trim();
+  const destination = document.getElementById("destination").value.trim();
+  const amount = document.getElementById("amount").value;
+  const date = document.getElementById("date").value;
+  const notes = document.getElementById("notes").value.trim();
+
+  if (!purpose || !recipient) { toast("⚠️ لازم تكتب الغرض والمستلم"); return; }
+
+  const btn = document.getElementById("saveBtn");
+  btn.disabled = true; btn.textContent = "⏳ جاري الحفظ...";
+
+  try {
+    await col.add({
+      purpose, recipient, destination,
+      amount: amount ? parseFloat(amount) : null,
+      date: date || null,
+      notes,
+      image: selectedImageBase64 || null,
+      category: activeCategory,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast("✅ تم حفظ الإيصال");
+    document.getElementById("purpose").value = "";
+    document.getElementById("recipient").value = "";
+    document.getElementById("destination").value = "";
+    document.getElementById("amount").value = "";
+    document.getElementById("notes").value = "";
+    selectedImageBase64 = "";
+    document.getElementById("preview").style.display = "none";
+    document.getElementById("pickerText").textContent = "🖼️ اضغط لتحميل صورة الإيصال";
+  } catch (err) {
+    toast("❌ خطأ: " + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "💾 حفظ الإيصال";
+  }
+};
+
+// عرض القائمة (لحظي)
+let allItems = [];
+col.orderBy("createdAt", "desc").onSnapshot((snap) => {
+  allItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  populateYears();
+  renderList();
+}, (err) => {
+  document.getElementById("list").innerHTML =
+    `<div class="cfgbox">⚠️ ما قدر يتصل بقاعدة البيانات.<br>تأكد من إعدادات Firebase في أعلى الكود.<br><br>${err.message}</div>`;
+});
+
+function renderList(){
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const filtered = allItems.filter(it =>
+    (it.category || "عام") === activeCategory &&
+    (!q ||
+      (it.purpose||"").toLowerCase().includes(q) ||
+      (it.recipient||"").toLowerCase().includes(q) ||
+      (it.destination||"").toLowerCase().includes(q))
+  );
+
+  const list = document.getElementById("list");
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty">لا توجد إيصالات بعد</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(it => `
+    <div class="item">
+      ${it.image
+        ? `<img src="${it.image}" onclick="openModal('${it.image}')">`
+        : `<div style="width:64px;height:64px;border-radius:8px;background:#0c0e13;display:flex;align-items:center;justify-content:center;flex-shrink:0">📄</div>`
+      }
+      <div class="info">
+        <div class="title">${escapeHtml(it.purpose||"")}</div>
+        <div class="sub">👤 ${escapeHtml(it.recipient||"")} &nbsp;|&nbsp; 📍 ${escapeHtml(it.destination||"-")}</div>
+        <div class="sub">📅 ${it.date||"-"}${it.notes ? " • " + escapeHtml(it.notes) : ""}</div>
+        ${it.amount ? `<div class="amount">${it.amount}</div>` : ""}
+      </div>
+      <button class="del" onclick="deleteItem('${it.id}')">🗑️</button>
+    </div>
+  `).join("");
+}
+
+document.getElementById("search").oninput = renderList;
+
+function populateYears(){
+  const years = new Set();
+  allItems.filter(it => (it.category || "عام") === activeCategory)
+    .forEach(it => { if (it.date) years.add(it.date.slice(0,4)); });
+  const sel = document.getElementById("yearFilter");
+  const current = sel.value;
+  const sorted = [...years].sort().reverse();
+  sel.innerHTML = `<option value="">كل السنوات</option>` +
+    sorted.map(y => `<option value="${y}">${y}</option>`).join("");
+  if (sorted.includes(current)) sel.value = current;
+}
+
+document.getElementById("printBtn").onclick = () => {
+  const year = document.getElementById("yearFilter").value;
+  const items = allItems
+    .filter(it => (it.category || "عام") === activeCategory)
+    .filter(it => !year || (it.date && it.date.startsWith(year)))
+    .sort((a,b) => (a.date||"").localeCompare(b.date||""));
+
+  if (!items.length) { toast("⚠️ لا توجد تحويلات لهذه السنة"); return; }
+
+  const totalAmount = items.reduce((s,it) => s + (it.amount||0), 0);
+
+  document.getElementById("printArea").innerHTML = `
+    <h2>تقرير الحوالات - ${activeCategory} ${year ? "- " + year : "- جميع السنوات"}</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>الإيصال</th><th>التاريخ</th><th>الغرض</th><th>المستلم</th><th>الوجهة</th><th>المبلغ</th><th>ملاحظات</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map((it,i) => `
+          <tr>
+            <td>${i+1}</td>
+            <td>${it.image ? `<img src="${it.image}">` : "-"}</td>
+            <td>${it.date||"-"}</td>
+            <td>${escapeHtml(it.purpose||"")}</td>
+            <td>${escapeHtml(it.recipient||"")}</td>
+            <td>${escapeHtml(it.destination||"")}</td>
+            <td>${it.amount ?? "-"}</td>
+            <td>${escapeHtml(it.notes||"")}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="6" style="text-align:left"><b>الإجمالي</b></td><td colspan="2"><b>${totalAmount}</b></td></tr>
+      </tfoot>
+    </table>
+  `;
+  window.print();
+};
+
+function escapeHtml(str){
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+window.deleteItem = async (id) => {
+  if (!confirm("متأكد تبي تحذف هذا الإيصال؟")) return;
+  await col.doc(id).delete();
+  toast("🗑️ تم الحذف");
+};
+
+window.openModal = (src) => {
+  document.getElementById("modalImg").src = src;
+  document.getElementById("modal").classList.add("show");
+};
+document.getElementById("modal").onclick = () => document.getElementById("modal").classList.remove("show");
+</script>
+</body>
+</html>
